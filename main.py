@@ -9,6 +9,9 @@ TOKEN = os.environ.get("TOKEN", "")
 CLINIC_CHAT_ID = int(os.environ.get("CLINIC_CHAT_ID", "341149071"))
 ADMIN_ID = int(os.environ.get("CLINIC_CHAT_ID", "341149071"))
 
+# آدرس Render اپ شما — بعد از deploy باید اینجا بذاری
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")  # مثال: https://moazzen-bot.onrender.com
+
 (CHOOSE_POSITION, NAME, AGE, LOCATION, PHONE, EDUCATION, COURSES,
  CLINIC_NAME, DURATION, SPECIALTY, IMPLANT_BRANDS, DUTIES, REASON,
  SOFTWARE, STERILIZATION, OTHER_SKILLS, EXPERIENCE, WHY_MOAZZEN,
@@ -351,7 +354,19 @@ def main():
     )
     app.add_handler(conv)
     print("Bot started...")
-    app.run_polling()
+
+    # اگر WEBHOOK_URL تنظیم شده باشه از Webhook استفاده می‌کنه، وگرنه Polling
+    if WEBHOOK_URL:
+        print(f"Running with webhook: {WEBHOOK_URL}")
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=int(os.environ.get("PORT", 8443)),
+            url_path=TOKEN,
+            webhook_url=f"{WEBHOOK_URL}/{TOKEN}"
+        )
+    else:
+        print("Running with polling...")
+        app.run_polling()
 
 if __name__ == "__main__":
     main()
