@@ -380,5 +380,7 @@ def main():
         print("Running with polling...")
         app.run_polling()
 
+import asyncio
+
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
