@@ -1,3 +1,15 @@
+import sys
+import types
+
+# Fix for Python 3.14 compatibility with httpcore
+if not hasattr(types, '__module__'):
+    pass
+
+# Patch typing.Union for Python 3.14
+import typing
+if not hasattr(typing.Union, '__module__'):
+    typing.Union.__module__ = 'typing'
+
 import os
 import logging
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
@@ -322,9 +334,7 @@ async def cancel(update, context):
     await update.message.reply_text("لغو شد.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-import asyncio
-
-async def run():
+def main():
     app = Application.builder().token(TOKEN).build()
     conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
@@ -356,14 +366,19 @@ async def run():
     )
     app.add_handler(conv)
     print("Bot started...")
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
-    print("Polling started...")
-    await asyncio.Event().wait()
 
-def main():
-    asyncio.run(run())
+    # اگر WEBHOOK_URL تنظیم شده باشه از Webhook استفاده می‌کنه، وگرنه Polling
+    if WEBHOOK_URL:
+        print(f"Running with webhook: {WEBHOOK_URL}")
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=int(os.environ.get("PORT", 8443)),
+            url_path=TOKEN,
+            webhook_url=f"{WEBHOOK_URL}/{TOKEN}"
+        )
+    else:
+        print("Running with polling...")
+        app.run_polling()
 
 if __name__ == "__main__":
     main()
