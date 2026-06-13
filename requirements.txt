@@ -1,4 +1,2 @@
 python-telegram-bot==20.3
-httpcore==0.16.3
-httpx==0.23.3
-anyio==3.7.1
+httpx==0.24.1
