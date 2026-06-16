@@ -13,7 +13,10 @@ WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
 (CHOOSE_POSITION, NAME, AGE, LOCATION, PHONE, EDUCATION, COURSES,
  CLINIC_NAME, DURATION, SPECIALTY, IMPLANT_BRANDS, DUTIES, REASON,
  SOFTWARE, STERILIZATION, OTHER_SKILLS, EXPERIENCE, WHY_MOAZZEN,
- SALARY, FULLTIME, ABOUT_ME, PRIVATE_MSG, CONFIRM) = range(23)
+ SALARY, FULLTIME, ABOUT_ME, PRIVATE_MSG, CONFIRM,
+ # دندانپزشک اختصاصی
+ D_NAME, D_AGE, D_PHONE, D_LOCATION, D_EDUCATION, D_UNIVERSITY,
+ D_EXPERIENCE, D_COURSES, D_SERVICES) = range(32)
 
 def main_menu():
     keyboard = [
@@ -64,6 +67,10 @@ async def choose_position(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "pos_private":
         await query.message.reply_text("✉️ پیامت رو بنویس، مستقیم به مدیر میرسه 📩", reply_markup=nav_keyboard())
         return PRIVATE_MSG
+    if query.data == "pos_dentist":
+        context.user_data['position'] = "دندانپزشک"
+        await query.message.reply_text("✅ انتخاب کردی: *دندانپزشک*\n\n۱. نام و نام خانوادگی خود را وارد کنید:", parse_mode="Markdown", reply_markup=nav_keyboard())
+        return D_NAME
     if query.data in positions:
         context.user_data['position'] = positions[query.data]
         await query.message.reply_text(f"✅ انتخاب کردی: *{positions[query.data]}*\n\nنام و نام خانوادگی:", parse_mode="Markdown", reply_markup=nav_keyboard())
@@ -312,6 +319,22 @@ async def confirm_resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("از ابتدا شروع کن:", reply_markup=ReplyKeyboardRemove())
         return await start(update, context)
     d = context.user_data
+    if d.get('position') == "دندانپزشک":
+        msg = f"""📋 رزومه دندانپزشک
+
+👤 نام: {d.get('d_name', '-')}
+🎂 سن: {d.get('d_age', '-')}
+📞 تماس: {d.get('d_phone', '-')}
+📍 محل سکونت: {d.get('d_location', '-')}
+🎓 مدرک: {d.get('d_education', '-')}
+🏫 دانشگاه: {d.get('d_university', '-')}
+🏥 تجربه کاری: {d.get('d_experience', '-')}
+📜 دوره‌های تخصصی: {d.get('d_courses', '-')}
+🦷 خدمات قابل ارائه: {d.get('d_services', '-')}"""
+        await context.bot.send_message(chat_id=CLINIC_CHAT_ID, text=msg)
+        await query.message.reply_text("✅ ممنون! رزومه‌ات ثبت شد و به زودی باهات تماس می‌گیریم 😊\n\n🦷 کلینیک دندانپزشکی مؤذن", reply_markup=ReplyKeyboardRemove())
+        return ConversationHandler.END
+
     msg = f"""📋 رزومه جدید — {d.get('position', '')}
 
 👤 اطلاعات شخصی:
@@ -349,6 +372,110 @@ async def confirm_resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.message.reply_text("✅ ممنون! رزومه‌ات ثبت شد و به زودی باهات تماس می‌گیریم 😊\n\n🦷 کلینیک دندانپزشکی مؤذن", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
+async def d_name(update, context):
+    text = update.message.text
+    if "شروع از ابتدا" in text: return await start(update, context)
+    if "بازگشت" in text:
+        await update.message.reply_text("پوزیشن رو انتخاب کن:", reply_markup=main_menu())
+        return CHOOSE_POSITION
+    context.user_data['d_name'] = text
+    await update.message.reply_text("۲. سن شما چیست؟", reply_markup=nav_keyboard())
+    return D_AGE
+
+async def d_age(update, context):
+    text = update.message.text
+    if "شروع از ابتدا" in text: return await start(update, context)
+    if "بازگشت" in text:
+        await update.message.reply_text("۱. نام و نام خانوادگی:", reply_markup=nav_keyboard())
+        return D_NAME
+    context.user_data['d_age'] = text
+    await update.message.reply_text("۳. شماره تماس شما چیست؟", reply_markup=nav_keyboard())
+    return D_PHONE
+
+async def d_phone(update, context):
+    text = update.message.text
+    if "شروع از ابتدا" in text: return await start(update, context)
+    if "بازگشت" in text:
+        await update.message.reply_text("۲. سن:", reply_markup=nav_keyboard())
+        return D_AGE
+    context.user_data['d_phone'] = text
+    await update.message.reply_text("۴. محل سکونت شما کجاست؟", reply_markup=nav_keyboard())
+    return D_LOCATION
+
+async def d_location(update, context):
+    text = update.message.text
+    if "شروع از ابتدا" in text: return await start(update, context)
+    if "بازگشت" in text:
+        await update.message.reply_text("۳. شماره تماس:", reply_markup=nav_keyboard())
+        return D_PHONE
+    context.user_data['d_location'] = text
+    await update.message.reply_text("۵. مدرک تحصیلی و رشته خود را بفرمایید:", reply_markup=nav_keyboard())
+    return D_EDUCATION
+
+async def d_education(update, context):
+    text = update.message.text
+    if "شروع از ابتدا" in text: return await start(update, context)
+    if "بازگشت" in text:
+        await update.message.reply_text("۴. محل سکونت:", reply_markup=nav_keyboard())
+        return D_LOCATION
+    context.user_data['d_education'] = text
+    await update.message.reply_text("۶. نام دانشگاه و سال فارغ‌التحصیلی:", reply_markup=nav_keyboard())
+    return D_UNIVERSITY
+
+async def d_university(update, context):
+    text = update.message.text
+    if "شروع از ابتدا" in text: return await start(update, context)
+    if "بازگشت" in text:
+        await update.message.reply_text("۵. مدرک تحصیلی:", reply_markup=nav_keyboard())
+        return D_EDUCATION
+    context.user_data['d_university'] = text
+    await update.message.reply_text("۷. تجربه کاری خود را در دندانپزشکی بفرمایید (نام مراکز و مدت زمان):", reply_markup=nav_keyboard())
+    return D_EXPERIENCE
+
+async def d_experience(update, context):
+    text = update.message.text
+    if "شروع از ابتدا" in text: return await start(update, context)
+    if "بازگشت" in text:
+        await update.message.reply_text("۶. نام دانشگاه:", reply_markup=nav_keyboard())
+        return D_UNIVERSITY
+    context.user_data['d_experience'] = text
+    await update.message.reply_text("۸. آیا دوره‌های تخصصی یا گواهینامه‌های مرتبط دارید؟", reply_markup=nav_keyboard())
+    return D_COURSES
+
+async def d_courses(update, context):
+    text = update.message.text
+    if "شروع از ابتدا" in text: return await start(update, context)
+    if "بازگشت" in text:
+        await update.message.reply_text("۷. تجربه کاری:", reply_markup=nav_keyboard())
+        return D_EXPERIENCE
+    context.user_data['d_courses'] = text
+    await update.message.reply_text("۹. چند نوع خدمات دندانپزشکی می‌توانید ارائه دهید؟ (لطفاً نام ببرید):", reply_markup=nav_keyboard())
+    return D_SERVICES
+
+async def d_services(update, context):
+    text = update.message.text
+    if "شروع از ابتدا" in text: return await start(update, context)
+    if "بازگشت" in text:
+        await update.message.reply_text("۸. دوره‌های تخصصی:", reply_markup=nav_keyboard())
+        return D_COURSES
+    context.user_data['d_services'] = text
+    d = context.user_data
+    summary = f"""📋 *خلاصه رزومه دندانپزشک:*
+
+👤 نام: {d.get('d_name', '-')}
+🎂 سن: {d.get('d_age', '-')}
+📞 تماس: {d.get('d_phone', '-')}
+📍 محل سکونت: {d.get('d_location', '-')}
+🎓 مدرک: {d.get('d_education', '-')}
+🏫 دانشگاه: {d.get('d_university', '-')}
+🏥 تجربه: {d.get('d_experience', '-')}
+📜 دوره‌ها: {d.get('d_courses', '-')}
+🦷 خدمات: {d.get('d_services', '-')}
+
+آیا اطلاعات صحیح است و رزومه ارسال شود؟"""
+    await update.message.reply_text(summary, parse_mode="Markdown", reply_markup=confirm_keyboard())
+    return CONFIRM
+
 async def cancel(update, context):
     await update.message.reply_text("لغو شد.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
@@ -381,6 +508,15 @@ def main():
             FULLTIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_fulltime)],
             ABOUT_ME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_about_me)],
             CONFIRM: [CallbackQueryHandler(confirm_resume)],
+            D_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, d_name)],
+            D_AGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, d_age)],
+            D_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, d_phone)],
+            D_LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, d_location)],
+            D_EDUCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, d_education)],
+            D_UNIVERSITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, d_university)],
+            D_EXPERIENCE: [MessageHandler(filters.TEXT & ~filters.COMMAND, d_experience)],
+            D_COURSES: [MessageHandler(filters.TEXT & ~filters.COMMAND, d_courses)],
+            D_SERVICES: [MessageHandler(filters.TEXT & ~filters.COMMAND, d_services)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
