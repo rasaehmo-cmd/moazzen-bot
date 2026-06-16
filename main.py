@@ -1,15 +1,3 @@
-import sys
-import types
-
-# Fix for Python 3.14 compatibility with httpcore
-if not hasattr(types, '__module__'):
-    pass
-
-# Patch typing.Union for Python 3.14
-import typing
-if not hasattr(typing.Union, '__module__'):
-    typing.Union.__module__ = 'typing'
-
 import os
 import logging
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
@@ -20,68 +8,76 @@ logging.basicConfig(level=logging.INFO)
 TOKEN = os.environ.get("TOKEN", "")
 CLINIC_CHAT_ID = int(os.environ.get("CLINIC_CHAT_ID", "341149071"))
 ADMIN_ID = int(os.environ.get("CLINIC_CHAT_ID", "341149071"))
-
-# آدرس Render اپ شما — بعد از deploy باید اینجا بذاری
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")  # مثال: https://moazzen-bot.onrender.com
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
 
 (CHOOSE_POSITION, NAME, AGE, LOCATION, PHONE, EDUCATION, COURSES,
  CLINIC_NAME, DURATION, SPECIALTY, IMPLANT_BRANDS, DUTIES, REASON,
  SOFTWARE, STERILIZATION, OTHER_SKILLS, EXPERIENCE, WHY_MOAZZEN,
- SALARY, FULLTIME, ABOUT_ME, PRIVATE_MSG) = range(22)
+ SALARY, FULLTIME, ABOUT_ME, PRIVATE_MSG, CONFIRM) = range(23)
 
 def main_menu():
     keyboard = [
-        ["1️⃣ منشی حرفه‌ای"],
-        ["2️⃣ دستیار تخصصی"],
-        ["3️⃣ سوپروایزر"],
-        ["✉️ پیام خصوصی به مدیر"]
+        [InlineKeyboardButton("🦷 دندانپزشک", callback_data="pos_dentist"),
+         InlineKeyboardButton("👩‍⚕️ دستیار تخصصی", callback_data="pos_assistant")],
+        [InlineKeyboardButton("🗂️ منشی حرفه‌ای", callback_data="pos_secretary"),
+         InlineKeyboardButton("👔 سوپروایزر", callback_data="pos_supervisor")],
+        [InlineKeyboardButton("✉️ پیام خصوصی به مدیر", callback_data="pos_private")]
     ]
-    return ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    return InlineKeyboardMarkup(keyboard)
 
 def nav_keyboard():
     keyboard = [["🔄 شروع از ابتدا", "⬅️ بازگشت"]]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
+def confirm_keyboard():
+    keyboard = [
+        [InlineKeyboardButton("✅ ارسال رزومه", callback_data="confirm_yes")],
+        [InlineKeyboardButton("✏️ ویرایش مجدد", callback_data="confirm_no")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    await update.message.reply_text(
-        "سلام 😊\nممنون از علاقه‌ات به همکاری با کلینیک دندانپزشکی مؤذن!\n\nلطفاً یکی از گزینه‌ها رو انتخاب کن:",
-        reply_markup=main_menu()
+    welcome_text = (
+        "🦷 *کلینیک دندانپزشکی مؤذن*\n\n"
+        "سلام و خوش آمدید 😊\n"
+        "ممنون از علاقه‌ات به همکاری با ما!\n\n"
+        "لطفاً موقعیت شغلی مورد نظرت رو انتخاب کن:"
     )
+    msg = update.message if update.message else update.callback_query.message
+    try:
+        with open("/app/welcome.jpg", "rb") as photo:
+            await msg.reply_photo(photo=photo, caption=welcome_text, parse_mode="Markdown", reply_markup=main_menu())
+    except:
+        await msg.reply_text(welcome_text, parse_mode="Markdown", reply_markup=main_menu())
     return CHOOSE_POSITION
 
 async def choose_position(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    if "منشی" in text: context.user_data['position'] = "منشی حرفه‌ای"
-    elif "دستیار" in text: context.user_data['position'] = "دستیار تخصصی"
-    elif "سوپروایزر" in text: context.user_data['position'] = "سوپروایزر"
-    elif "پیام خصوصی" in text:
-        await update.message.reply_text("پیامت رو بنویس، مستقیم به مدیر میرسه 📩", reply_markup=nav_keyboard())
+    query = update.callback_query
+    await query.answer()
+    positions = {
+        "pos_dentist": "دندانپزشک",
+        "pos_assistant": "دستیار تخصصی",
+        "pos_secretary": "منشی حرفه‌ای",
+        "pos_supervisor": "سوپروایزر",
+    }
+    if query.data == "pos_private":
+        await query.message.reply_text("✉️ پیامت رو بنویس، مستقیم به مدیر میرسه 📩", reply_markup=nav_keyboard())
         return PRIVATE_MSG
-    else:
-        await update.message.reply_text("لطفاً یکی از گزینه‌ها رو انتخاب کن.", reply_markup=main_menu())
-        return CHOOSE_POSITION
-    await update.message.reply_text("نام و نام خانوادگی:", reply_markup=nav_keyboard())
-    return NAME
+    if query.data in positions:
+        context.user_data['position'] = positions[query.data]
+        await query.message.reply_text(f"✅ انتخاب کردی: *{positions[query.data]}*\n\nنام و نام خانوادگی:", parse_mode="Markdown", reply_markup=nav_keyboard())
+        return NAME
+    return CHOOSE_POSITION
 
-async def private_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def private_msg(update, context):
     text = update.message.text
     if "شروع از ابتدا" in text: return await start(update, context)
     if "بازگشت" in text: return await start(update, context)
     sender = update.effective_user
-    msg = f"✉️ پیام خصوصی از @{sender.username or sender.first_name}:\n\n{text}"
-    await context.bot.send_message(chat_id=CLINIC_CHAT_ID, text=msg)
+    await context.bot.send_message(chat_id=CLINIC_CHAT_ID, text=f"✉️ پیام خصوصی از @{sender.username or sender.first_name}:\n\n{text}")
     await update.message.reply_text("✅ پیامت به مدیر رسید!", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
-
-async def handle_nav(update, context, prev_state, question, prev_key=None):
-    text = update.message.text
-    if "شروع از ابتدا" in text:
-        return await start(update, context)
-    if "بازگشت" in text and prev_key:
-        await update.message.reply_text(f"دوباره بنویس — {prev_key}:", reply_markup=nav_keyboard())
-        return prev_state
-    return None
 
 async def get_name(update, context):
     text = update.message.text
@@ -130,7 +126,11 @@ async def get_education(update, context):
         await update.message.reply_text("شماره تماس:", reply_markup=nav_keyboard())
         return PHONE
     context.user_data['education'] = text
-    await update.message.reply_text("دوره‌های تخصصی گذرونده (اگه نداری بنویس ندارم):", reply_markup=nav_keyboard())
+    position = context.user_data.get('position', '')
+    if position == "دندانپزشک":
+        await update.message.reply_text("شماره نظام پزشکی:", reply_markup=nav_keyboard())
+    else:
+        await update.message.reply_text("دوره‌های تخصصی گذرونده (اگه نداری بنویس ندارم):", reply_markup=nav_keyboard())
     return COURSES
 
 async def get_courses(update, context):
@@ -140,7 +140,7 @@ async def get_courses(update, context):
         await update.message.reply_text("رشته تحصیلی:", reply_markup=nav_keyboard())
         return EDUCATION
     context.user_data['courses'] = text
-    await update.message.reply_text("نام کلینیک / مطب / پزشک:", reply_markup=nav_keyboard())
+    await update.message.reply_text("نام کلینیک / مطب:", reply_markup=nav_keyboard())
     return CLINIC_NAME
 
 async def get_clinic_name(update, context):
@@ -161,8 +161,8 @@ async def get_duration(update, context):
         return CLINIC_NAME
     context.user_data['duration'] = text
     position = context.user_data.get('position', '')
-    if position in ["دستیار تخصصی", "سوپروایزر"]:
-        await update.message.reply_text("چه تخصصی کار کردی / سمت:", reply_markup=nav_keyboard())
+    if position in ["دستیار تخصصی", "سوپروایزر", "دندانپزشک"]:
+        await update.message.reply_text("تخصص / گرایش:", reply_markup=nav_keyboard())
         return SPECIALTY
     await update.message.reply_text("شرح وظایف:", reply_markup=nav_keyboard())
     return DUTIES
@@ -185,7 +185,7 @@ async def get_implant_brands(update, context):
     text = update.message.text
     if "شروع از ابتدا" in text: return await start(update, context)
     if "بازگشت" in text:
-        await update.message.reply_text("چه تخصصی کار کردی:", reply_markup=nav_keyboard())
+        await update.message.reply_text("تخصص:", reply_markup=nav_keyboard())
         return SPECIALTY
     context.user_data['implant_brands'] = text
     await update.message.reply_text("شرح وظایف:", reply_markup=nav_keyboard())
@@ -208,7 +208,7 @@ async def get_reason(update, context):
         await update.message.reply_text("شرح وظایف:", reply_markup=nav_keyboard())
         return DUTIES
     context.user_data['reason'] = text
-    await update.message.reply_text("آشنایی با نرم‌افزار مطب / ابزار تخصصی:", reply_markup=nav_keyboard())
+    await update.message.reply_text("آشنایی با نرم‌افزار مطب:", reply_markup=nav_keyboard())
     return SOFTWARE
 
 async def get_software(update, context):
@@ -218,14 +218,14 @@ async def get_software(update, context):
         await update.message.reply_text("دلیل جدایی:", reply_markup=nav_keyboard())
         return REASON
     context.user_data['software'] = text
-    await update.message.reply_text("آشنایی با بیمه تکمیلی / استریلیزاسیون:", reply_markup=nav_keyboard())
+    await update.message.reply_text("آشنایی با بیمه / استریلیزاسیون:", reply_markup=nav_keyboard())
     return STERILIZATION
 
 async def get_sterilization(update, context):
     text = update.message.text
     if "شروع از ابتدا" in text: return await start(update, context)
     if "بازگشت" in text:
-        await update.message.reply_text("آشنایی با نرم‌افزار مطب:", reply_markup=nav_keyboard())
+        await update.message.reply_text("آشنایی با نرم‌افزار:", reply_markup=nav_keyboard())
         return SOFTWARE
     context.user_data['sterilization'] = text
     await update.message.reply_text("مهارت‌های دیگه:", reply_markup=nav_keyboard())
@@ -235,7 +235,7 @@ async def get_other_skills(update, context):
     text = update.message.text
     if "شروع از ابتدا" in text: return await start(update, context)
     if "بازگشت" in text:
-        await update.message.reply_text("آشنایی با بیمه / استریلیزاسیون:", reply_markup=nav_keyboard())
+        await update.message.reply_text("آشنایی با بیمه:", reply_markup=nav_keyboard())
         return STERILIZATION
     context.user_data['other_skills'] = text
     await update.message.reply_text("سال‌های سابقه در دندانپزشکی:", reply_markup=nav_keyboard())
@@ -278,10 +278,7 @@ async def get_fulltime(update, context):
         await update.message.reply_text("حقوق مدنظر:", reply_markup=nav_keyboard())
         return SALARY
     context.user_data['fulltime'] = text
-    await update.message.reply_text(
-        "درباره من ✍️\nهر چیزی که دوست داری درباره خودت بگی — ویژگی‌ها، علایق، تجربیات خاص یا هر چیز دیگه‌ای:",
-        reply_markup=nav_keyboard()
-    )
+    await update.message.reply_text("درباره من ✍️\nهر چیزی که دوست داری درباره خودت بگی:", reply_markup=nav_keyboard())
     return ABOUT_ME
 
 async def get_about_me(update, context):
@@ -291,6 +288,29 @@ async def get_about_me(update, context):
         await update.message.reply_text("امکان کار تمام‌وقت:", reply_markup=nav_keyboard())
         return FULLTIME
     context.user_data['about_me'] = text
+    d = context.user_data
+    summary = f"""📋 *خلاصه رزومه شما:*
+
+👤 نام: {d.get('name', '-')}
+🎂 سن: {d.get('age', '-')}
+📍 محل سکونت: {d.get('location', '-')}
+📞 تماس: {d.get('phone', '-')}
+💼 موقعیت: {d.get('position', '-')}
+🎓 تحصیلات: {d.get('education', '-')}
+🏥 کلینیک قبلی: {d.get('clinic_name', '-')}
+📅 مدت: {d.get('duration', '-')}
+💰 حقوق: {d.get('salary', '-')}
+
+آیا اطلاعات صحیح است و رزومه ارسال شود؟"""
+    await update.message.reply_text(summary, parse_mode="Markdown", reply_markup=confirm_keyboard())
+    return CONFIRM
+
+async def confirm_resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if query.data == "confirm_no":
+        await query.message.reply_text("از ابتدا شروع کن:", reply_markup=ReplyKeyboardRemove())
+        return await start(update, context)
     d = context.user_data
     msg = f"""📋 رزومه جدید — {d.get('position', '')}
 
@@ -302,7 +322,7 @@ async def get_about_me(update, context):
 
 🎓 تحصیلات:
 رشته: {d.get('education', '-')}
-دوره‌های تخصصی: {d.get('courses', '-')}
+دوره‌ها/شماره نظام: {d.get('courses', '-')}
 
 🏥 سابقه کاری:
 نام کلینیک: {d.get('clinic_name', '-')}
@@ -313,8 +333,8 @@ async def get_about_me(update, context):
 دلیل جدایی: {d.get('reason', '-')}
 
 💡 مهارت‌ها:
-{d.get('software', '-')}
-{d.get('sterilization', '-')}
+نرم‌افزار: {d.get('software', '-')}
+بیمه/استریلیزاسیون: {d.get('sterilization', '-')}
 مهارت‌های دیگه: {d.get('other_skills', '-')}
 سابقه دندانپزشکی: {d.get('experience', '-')}
 
@@ -325,9 +345,8 @@ async def get_about_me(update, context):
 
 ✍️ درباره من:
 {d.get('about_me', '-')}"""
-
     await context.bot.send_message(chat_id=CLINIC_CHAT_ID, text=msg)
-    await update.message.reply_text("✅ ممنون! رزومه‌ات ثبت شد و به زودی باهات تماس می‌گیریم 😊", reply_markup=ReplyKeyboardRemove())
+    await query.message.reply_text("✅ ممنون! رزومه‌ات ثبت شد و به زودی باهات تماس می‌گیریم 😊\n\n🦷 کلینیک دندانپزشکی مؤذن", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
 async def cancel(update, context):
@@ -339,7 +358,7 @@ def main():
     conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            CHOOSE_POSITION: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_position)],
+            CHOOSE_POSITION: [CallbackQueryHandler(choose_position)],
             PRIVATE_MSG: [MessageHandler(filters.TEXT & ~filters.COMMAND, private_msg)],
             NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
             AGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_age)],
@@ -361,26 +380,16 @@ def main():
             SALARY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_salary)],
             FULLTIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_fulltime)],
             ABOUT_ME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_about_me)],
+            CONFIRM: [CallbackQueryHandler(confirm_resume)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
     app.add_handler(conv)
     print("Bot started...")
-
-    # اگر WEBHOOK_URL تنظیم شده باشه از Webhook استفاده می‌کنه، وگرنه Polling
     if WEBHOOK_URL:
-        print(f"Running with webhook: {WEBHOOK_URL}")
-        app.run_webhook(
-            listen="0.0.0.0",
-            port=int(os.environ.get("PORT", 8443)),
-            url_path=TOKEN,
-            webhook_url=f"{WEBHOOK_URL}/{TOKEN}"
-        )
+        app.run_webhook(listen="0.0.0.0", port=int(os.environ.get("PORT", 8443)), url_path=TOKEN, webhook_url=f"{WEBHOOK_URL}/{TOKEN}")
     else:
-        print("Running with polling...")
         app.run_polling()
 
-import asyncio
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
